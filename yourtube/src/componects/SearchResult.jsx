@@ -95,7 +95,7 @@ const SearchResult = ({ query }) => {
                     <Link to={`/watch/${video._id}`} className="flex-shrink-0">
                         <div className="relative w-80 aspect-video bg-gray-100 rounded-lg overflow-hidden">
                             <video
-                                src={`${VITE_BACKEND_URL}/uploads/${video.filename}`}
+                                src={video?.URL}
                                 onLoadedMetadata={(e) => handleLoadedMetadata(video._id, e)}
                                 className="object-cover group-hover:scale-105 transition-transform duration-200"
                             />
