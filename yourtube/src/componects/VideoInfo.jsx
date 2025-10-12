@@ -142,7 +142,7 @@ const VideoInfo = ({ video }) => {
             <h1 className="text-xl font-semibold">{video.videotitle}</h1>
 
             {/* Channel and Buttons */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between md:flex-row flex-col gap-3">
                 <div className="flex items-center gap-4">
                     <Avatar className="w-10 h-10">
                         <AvatarFallback>{video.videochanel[0]}</AvatarFallback>
@@ -193,23 +193,29 @@ const VideoInfo = ({ video }) => {
                         <Clock className="w-5 h-5 mr-2" />
                         {isWatchLater ? "Saved" : "Watch Later"}
                     </Button>
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        className="bg-gray-100 rounded-full"
-                    >
-                        <Share className="w-5 h-5 mr-2" /> Share
-                    </Button>
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        className="bg-gray-100 rounded-full"
-                    >
-                        <Download className="w-5 h-5 mr-2" /> Download
-                    </Button>
-                    <Button variant="secondary" size="icon" className="bg-gray-100 rounded-full">
-                        <MoreHorizontal className="w-5 h-5" />
-                    </Button>
+                    <div className="hidden md:block">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-gray-100 rounded-full"
+                        >
+                            <Share className="w-5 h-5 mr-2" /> Share
+                        </Button>
+                    </div>
+                    <div className="hidden md:block">
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            className="bg-gray-100 rounded-full"
+                        >
+                            <Download className="w-5 h-5 mr-2" /> Download
+                        </Button>
+                    </div>
+                    <div className="hidden md:block">
+                        <Button variant="secondary" size="icon" className="bg-gray-100 rounded-full">
+                            <MoreHorizontal className="w-5 h-5" />
+                        </Button>
+                    </div>
                 </div>
             </div>
 

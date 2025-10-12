@@ -12,7 +12,7 @@ const Layout = () => {
                     <Sidebar />
                 </div>
                 {/* Content area takes the remaining space */}
-                <div className="flex-1 overflow-auto p-4">
+                <div className="flex-1 overflow-auto p-2 md:p-4">
                     <Outlet /> {/* This changes over based on the routes */}
                 </div>
             </div>

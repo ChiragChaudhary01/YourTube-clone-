@@ -77,9 +77,9 @@ const HistoryContent = () => {
                     item.videoId ?
                         (<div
                             key={item._id}
-                            className="flex items-start gap-4 border-b shadow-xl hover:bg-gray-50 rounded-lg transition"
+                            className="flex items-start gap-4 border-b shadow-xl hover:bg-gray-50 rounded-lg transition flex-col md:flex-row"
                         >
-                            <Link to={`/watch/${item.videoId?._id}`} className="flex-shrink-0 w-48">
+                            <Link to={`/watch/${item.videoId?._id}`} className="flex-shrink-0 w-full md:w-48">
                                 <video
                                     src={item.videoId?.URL}
                                     className="rounded-lg w-full aspect-video object-cover hover:scale-105 transition-transform duration-200"
@@ -88,7 +88,7 @@ const HistoryContent = () => {
                                 />
                             </Link>
 
-                            <div className="flex-1">
+                            <div className="flex-1 px-2">
                                 <Link to={`/watch/${item.videoId?._id}`}>
                                     <h3 className="font-semibold">{item.videoId?.videotitle}</h3>
                                     <p className="text-sm text-gray-500">{item.videoId?.videochannel}</p>
