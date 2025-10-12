@@ -1,5 +1,5 @@
 import { Outlet } from "react-router";
-import Header from '../componects/header.jsx';
+import Header from '../componects/Header.jsx';
 import Sidebar from '../componects/Sidebar.jsx';
 
 const Layout = () => {
