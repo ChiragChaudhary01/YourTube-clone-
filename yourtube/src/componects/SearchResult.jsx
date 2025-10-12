@@ -10,8 +10,6 @@ const SearchResult = ({ query }) => {
     const [durations, setDurations] = useState({}); // store durations per video
     const [loading, setLoading] = useState(false);
 
-    const VITE_BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
     // 🧠 Fetch + filter videos
     useEffect(() => {
         if (!query.trim()) {
@@ -91,7 +89,7 @@ const SearchResult = ({ query }) => {
     return (
         <div>
             {filteredVideos.map((video) => (
-                <div key={video._id} className="p-4 flex gap-4 group">
+                <div key={video._id} className="p-4 flex gap-4 group flex-col md:flex-row">
                     <Link to={`/watch/${video._id}`} className="flex-shrink-0">
                         <div className="relative w-80 aspect-video bg-gray-100 rounded-lg overflow-hidden">
                             <video
