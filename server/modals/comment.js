@@ -14,6 +14,9 @@ const commentSchema = mongoose.Schema(
     commentBody: { type: String },
     userCommented: { type: String },
     commentedOn: { type: Date, default: Date.now },
+    city: { type: String, default: "" },
+    likes: { type: Number, default: 0 },
+    dislikes: { type: Number, default: 0 },
   },
   {
     timestamps: true,

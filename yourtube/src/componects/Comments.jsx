@@ -14,6 +14,8 @@ const Comments = ({ videoId }) => {
     const [editText, setEditText] = useState("");
     const { user } = useUser();
     const [loading, setLoading] = useState(false);
+    const [targetLangById, setTargetLangById] = useState({}); // commentId -> lang
+    const [translated, setTranslated] = useState({}); // commentId -> text
 
     useEffect(() => {
         loadComments();
@@ -36,24 +38,46 @@ const Comments = ({ videoId }) => {
         return <div>Loading history...</div>;
     }
 
+    const hasOnlyAllowedChars = (text) => !(/[<>\{\}\[\]\|\^~`]/.test(text));
+
     const handleSubmitComment = async () => {
         if (!user || !newComment.trim()) return;
+        if (!hasOnlyAllowedChars(newComment)) {
+            alert('Comment contains disallowed characters.');
+            return;
+        }
+        // Fetch city on client for accuracy when behind proxies
+        let city = '';
+        try {
+            const ipResp = await fetch('https://ipapi.co/json/');
+            if (ipResp.ok) {
+                const ipData = await ipResp.json();
+                city = ipData?.city || '';
+            }
+        } catch {}
         const response = await axiosInstance.post(`/comment/${videoId}`, {
             userId: user?._id,
             commentBody: newComment,
             userCommented: user.name || "Anonymous",
+            city,
         });
         if (response.data.comment) {
             setIsSubmitting(true);
-            const newCommentObj = {
-                _id: Date.now().toString(),
-                videoid: videoId,
-                userid: user.id,
-                commentBody: newComment,
-                userCommented: user.name || "Anonymous",
-                commentedon: new Date().toISOString(),
-            };
-            setComments([newCommentObj, ...comments]);
+            const saved = response.data.commentDoc;
+            if (saved) {
+                setComments([saved, ...comments]);
+            } else {
+                // fallback optimistic
+                const newCommentObj = {
+                    _id: Date.now().toString(),
+                    videoid: videoId,
+                    userid: user.id,
+                    commentBody: newComment,
+                    userCommented: user.name || "Anonymous",
+                    commentedon: new Date().toISOString(),
+                };
+                setComments([newCommentObj, ...comments]);
+            }
         }
         setNewComment("");
         setIsSubmitting(false);
@@ -90,6 +114,38 @@ const Comments = ({ videoId }) => {
             loadComments();
         } catch (error) {
             console.log(error);
+        }
+    };
+
+    const react = async (id, action) => {
+        try {
+            const res = await axiosInstance.post(`/comment/${id}/react`, { action, userId: user?._id });
+            if (res.data?.deleted) {
+                setComments((prev) => prev.filter((c) => c._id !== id));
+            } else if (res.data?.comment) {
+                const c = res.data.comment;
+                setComments((prev) => prev.map((it) => it._id === id ? c : it));
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const translate = async (id) => {
+        try {
+            const current = comments.find((c) => c._id === id);
+            const text = current ? current.commentBody : undefined;
+            const targetLang = targetLangById[id] || 'en';
+            const res = await axiosInstance.post(`/comment/${id}/translate`, { targetLang, text });
+            if (res.data?.translatedText) {
+                setTranslated((prev) => ({ ...prev, [id]: res.data.translatedText }));
+            } else if (res.data?.message) {
+                alert(res.data.message);
+            }
+        } catch (e) {
+            console.error(e);
+            const serverMsg = e?.response?.data?.message;
+            alert(serverMsg || 'Translation failed. Please try again later.');
         }
     };
 
@@ -143,6 +199,9 @@ const Comments = ({ videoId }) => {
                                     <span className="font-medium text-sm">
                                         {comment.userCommented}
                                     </span>
+                                    {comment.city && (
+                                        <span className="text-xs text-gray-600">• {comment.city}</span>
+                                    )}
                                     <span className="text-xs text-gray-600">
                                         {comment.commentedOn
                                             ? `${formatDistanceToNow(new Date(comment.commentedOn))} ago`
@@ -176,7 +235,19 @@ const Comments = ({ videoId }) => {
                                     </div>
                                 ) : (
                                     <>
-                                        <p className="text-sm">{comment?.commentBody}</p>
+                                        <p className="text-sm">{translated[comment._id] || comment?.commentBody}</p>
+                                        <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
+                                            <button onClick={() => react(comment._id, 'like')} className="hover:cursor-pointer">👍 {comment.likes || 0}</button>
+                                            <button onClick={() => react(comment._id, 'dislike')} className="hover:cursor-pointer">👎 {comment.dislikes || 0}</button>
+                                            <select value={targetLangById[comment._id] || 'en'} onChange={(e) => setTargetLangById((prev) => ({ ...prev, [comment._id]: e.target.value }))} className="border rounded px-1 py-0.5 text-xs">
+                                                <option value="en">English</option>
+                                                <option value="hi">Hindi</option>
+                                                <option value="es">Spanish</option>
+                                                <option value="fr">French</option>
+                                                <option value="de">German</option>
+                                            </select>
+                                            <button onClick={() => translate(comment._id)} className='underline hover:cursor-pointer'>Translate</button>
+                                        </div>
                                         {comment.userId === user?._id && (
                                             <div className="flex gap-2 mt-2 text-sm text-gray-500">
                                                 <button onClick={() => handleEdit(comment)} className='hover:cursor-pointer'>
