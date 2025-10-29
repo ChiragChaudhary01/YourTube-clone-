@@ -13,11 +13,70 @@ import {
 import ChannelDialoge from "./ChannelDialoge";
 import { Button } from "./UI/Button2";
 import { useUser } from "../lib/AuthContext";
+import axiosInstance from "../lib/axiosInstance";
 
 const Sidebar = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [isDialogeOpen, setIsDialogeOpen] = useState(false);
-    const { user } = useUser();
+    const { user, login } = useUser();
+    const [buying, setBuying] = useState(false);
+
+    const startPremiumCheckout = async () => {
+        try {
+            if (!user?._id) {
+                alert('Please sign in to purchase premium');
+                return;
+            }
+            setBuying(true);
+            const { data: keyData } = await axiosInstance.get(`/payment/key`);
+            const { data: order } = await axiosInstance.post(`/payment/order`, { amount: 49900 });
+            const options = {
+                key: keyData.key,
+                amount: order.amount,
+                currency: order.currency,
+                name: "YourTube Premium",
+                description: "Unlimited downloads for 30 days",
+                order_id: order.id,
+                handler: async function (response) {
+                    try {
+                        await axiosInstance.post(`/payment/verify`, {
+                            razorpay_order_id: response.razorpay_order_id,
+                            razorpay_payment_id: response.razorpay_payment_id,
+                            razorpay_signature: response.razorpay_signature,
+                            userId: user._id
+                        });
+                        if (user) {
+                            const until = new Date();
+                            until.setMonth(until.getMonth() + 1);
+                            login({ ...user, isPremium: true, premiumUntil: until.toISOString() });
+                        }
+                        alert('You are now premium!');
+                    } catch (e) {
+                        console.error(e);
+                        alert('Verification failed');
+                    }
+                },
+                theme: { color: "#000000" }
+            };
+            if (!window.Razorpay) {
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+                    script.onload = resolve;
+                    script.onerror = () => reject(new Error('Razorpay SDK failed to load'));
+                    document.body.appendChild(script);
+                });
+            }
+            const rz = new window.Razorpay(options);
+            rz.open();
+        } catch (e) {
+            console.error(e);
+            const message = e?.response?.data?.message || e?.message || 'Failed to start checkout';
+            alert(message);
+        } finally {
+            setBuying(false);
+        }
+    };
 
     const toggleSidebar = () => setIsOpen(!isOpen);
 
@@ -87,6 +146,12 @@ const Sidebar = () => {
                                         Watch later
                                     </button>
                                 </a>
+                                <a href="/downloads">
+                                    <button variant="ghost" className="flex w-full justify-start">
+                                        <History className="w-5 h-5 mr-3 hidden md:block" />
+                                        Downloads
+                                    </button>
+                                </a>
                                 {user?.channelname ? (
                                     <a href={`/channel/${user.id}`}>
                                         <button variant="ghost" className="flex w-full justify-start">
@@ -103,6 +168,19 @@ const Sidebar = () => {
                                             onClick={() => setIsDialogeOpen(true)}
                                         >
                                             Create Channel
+                                        </Button>
+                                    </div>
+                                )}
+                                {!user?.isPremium && (
+                                    <div className="px-2 py-1.5">
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            className="flex w-full bg-yellow-200 text-black"
+                                            onClick={startPremiumCheckout}
+                                            disabled={buying}
+                                        >
+                                            {buying ? 'Processing…' : 'Go Premium'}
                                         </Button>
                                     </div>
                                 )}

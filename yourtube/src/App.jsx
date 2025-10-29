@@ -10,6 +10,7 @@ import WatchLater from './pages/WatchLater.jsx'
 import ChannelPage from './pages/channel/[id]/index.jsx'
 import { ToastContainer } from 'react-toastify';
 import Search from './pages/Search.jsx'
+import ProfileDownloads from './pages/ProfileDownloads.jsx'
 
 function App() {
   const [count, setCount] = useState(0)
@@ -23,6 +24,7 @@ function App() {
           <Route path='history' element={<History />} />
           <Route path='liked' element={<Liked />} />
           <Route path='watch-later' element={<WatchLater />} />
+          <Route path='downloads' element={<ProfileDownloads />} />
           <Route path='channel/:id' element={<ChannelPage />}></Route>
           <Route path='search' element={<Search />}></Route>
         </Route >
