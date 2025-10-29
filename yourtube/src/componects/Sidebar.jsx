@@ -14,12 +14,14 @@ import ChannelDialoge from "./ChannelDialoge";
 import { Button } from "./UI/Button2";
 import { useUser } from "../lib/AuthContext";
 import axiosInstance from "../lib/axiosInstance";
+import UpgradePlanModal from "./UpgradePlanModal";
 
 const Sidebar = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [isDialogeOpen, setIsDialogeOpen] = useState(false);
-    const { user, login } = useUser();
+    const { user, login, remainingWatchSeconds } = useUser();
     const [buying, setBuying] = useState(false);
+    const [showUpgrade, setShowUpgrade] = useState(false);
 
     const startPremiumCheckout = async () => {
         try {
@@ -27,48 +29,7 @@ const Sidebar = () => {
                 alert('Please sign in to purchase premium');
                 return;
             }
-            setBuying(true);
-            const { data: keyData } = await axiosInstance.get(`/payment/key`);
-            const { data: order } = await axiosInstance.post(`/payment/order`, { amount: 49900 });
-            const options = {
-                key: keyData.key,
-                amount: order.amount,
-                currency: order.currency,
-                name: "YourTube Premium",
-                description: "Unlimited downloads for 30 days",
-                order_id: order.id,
-                handler: async function (response) {
-                    try {
-                        await axiosInstance.post(`/payment/verify`, {
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_signature: response.razorpay_signature,
-                            userId: user._id
-                        });
-                        if (user) {
-                            const until = new Date();
-                            until.setMonth(until.getMonth() + 1);
-                            login({ ...user, isPremium: true, premiumUntil: until.toISOString() });
-                        }
-                        alert('You are now premium!');
-                    } catch (e) {
-                        console.error(e);
-                        alert('Verification failed');
-                    }
-                },
-                theme: { color: "#000000" }
-            };
-            if (!window.Razorpay) {
-                await new Promise((resolve, reject) => {
-                    const script = document.createElement('script');
-                    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-                    script.onload = resolve;
-                    script.onerror = () => reject(new Error('Razorpay SDK failed to load'));
-                    document.body.appendChild(script);
-                });
-            }
-            const rz = new window.Razorpay(options);
-            rz.open();
+            setShowUpgrade(true);
         } catch (e) {
             console.error(e);
             const message = e?.response?.data?.message || e?.message || 'Failed to start checkout';
@@ -171,19 +132,47 @@ const Sidebar = () => {
                                         </Button>
                                     </div>
                                 )}
-                                {!user?.isPremium && (
-                                    <div className="px-2 py-1.5">
+                                <div className="px-2 py-2 border rounded-lg mt-2 text-sm w-full">
+                                    <div className="text-xs text-gray-600">Current Plan</div>
+                                    <div className="flex items-center justify-between mt-1 gap-2">
+                                        <div className="font-medium truncate max-w-[8rem] md:max-w-[10rem]">
+                                            {(user?.planType) ? user.planType : (user?.isPremium ? 'Gold' : 'Free')}
+                                        </div>
+                                        <div className="text-xs text-gray-600 shrink-0 text-right">
+                                            {(user?.planType === 'Gold' || user?.isPremium)
+                                                ? 'Unlimited'
+                                                : (() => {
+                                                    const total = (user?.planDurationLimit ?? 5) * 60;
+                                                    const rem = typeof remainingWatchSeconds === 'number' ? remainingWatchSeconds : total;
+                                                    const mm = Math.floor(rem / 60).toString().padStart(2, '0');
+                                                    const ss = Math.max(0, rem % 60).toString().padStart(2, '0');
+                                                    return `${mm}:${ss} left`;
+                                                  })()
+                                            }
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                         <Button
                                             variant="secondary"
                                             size="sm"
-                                            className="flex w-full bg-yellow-200 text-black"
-                                            onClick={startPremiumCheckout}
-                                            disabled={buying}
+                                            className="w-full min-w-0"
+                                            onClick={() => setShowUpgrade(true)}
                                         >
-                                            {buying ? 'Processing…' : 'Go Premium'}
+                                            Change Plan
                                         </Button>
+                                        {!user?.isPremium && (
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="w-full min-w-0 bg-yellow-200 text-black"
+                                                onClick={startPremiumCheckout}
+                                                disabled={buying}
+                                            >
+                                                {buying ? 'Loading…' : 'Upgrade'}
+                                            </Button>
+                                        )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </>
                     )}
@@ -194,6 +183,9 @@ const Sidebar = () => {
                     mode="create"
                 />
             </aside>
+            <UpgradePlanModal isOpen={showUpgrade} onClose={() => setShowUpgrade(false)} onSuccess={(plan) => {
+                // optional hook
+            }} />
         </>
     );
 };

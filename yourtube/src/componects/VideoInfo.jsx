@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { formatDistanceToNow, isAfter } from "date-fns";
 import { useUser } from "../lib/AuthContext";
+import UpgradePlanModal from "./UpgradePlanModal";
 
 const VideoInfo = ({ video }) => {
     const [likes, setLikes] = useState(video.Like || 0);
@@ -25,6 +26,7 @@ const VideoInfo = ({ video }) => {
     const [downloading, setDownloading] = useState(false);
     const [showPremiumHint, setShowPremiumHint] = useState(false);
     const [creatingOrder, setCreatingOrder] = useState(false);
+    const [showUpgrade, setShowUpgrade] = useState(false);
     const toAbsoluteUrl = (u) => {
         try {
             if (!u) return u;
@@ -308,7 +310,7 @@ const VideoInfo = ({ video }) => {
                                 variant="secondary"
                                 size="sm"
                                 className="bg-yellow-200 rounded-full text-black"
-                                onClick={startPremiumCheckout}
+                                onClick={() => setShowUpgrade(true)}
                                 disabled={creatingOrder}
                             >
                                 {creatingOrder ? 'Processing…' : 'Go Premium'}
@@ -350,7 +352,7 @@ const VideoInfo = ({ video }) => {
                             variant="secondary"
                             size="sm"
                             className="bg-yellow-300 text-black"
-                            onClick={startPremiumCheckout}
+                            onClick={() => setShowUpgrade(true)}
                             disabled={creatingOrder}
                         >
                             {creatingOrder ? 'Processing…' : 'Go Premium'}
@@ -366,6 +368,7 @@ const VideoInfo = ({ video }) => {
                     </div>
                 </div>
             )}
+            <UpgradePlanModal isOpen={showUpgrade} onClose={() => setShowUpgrade(false)} onSuccess={() => setShowPremiumHint(false)} />
         </div>
     );
 };
