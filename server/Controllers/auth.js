@@ -14,7 +14,15 @@ export const login = async (req, res) => {
         return;
       }
     } else {
-      res.status(200).json({ result: userExists });
+      // expire premium on login if past due
+      let userDoc = userExists;
+      const now = new Date();
+      if (userDoc.isPremium && userDoc.premiumUntil && now > new Date(userDoc.premiumUntil)) {
+        userDoc.isPremium = false;
+        userDoc.premiumUntil = undefined;
+        await userDoc.save();
+      }
+      res.status(200).json({ result: userDoc });
     }
   } catch (error) {
     res.status(500).json({ error });

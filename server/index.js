@@ -9,6 +9,8 @@ import likeRoutes from "./routes/like.js";
 import watchLaterRoutes from "./routes/watchlater.js";
 import historyRoutes from "./routes/history.js";
 import commentRouter from "./routes/comment.js";
+import downloadRoutes from "./routes/download.js";
+import paymentRoutes from "./routes/payment.js";
 
 dotenv.config();
 const app = express();
@@ -32,6 +34,9 @@ app.use("/like", likeRoutes);
 app.use("/watch-later", watchLaterRoutes);
 app.use("/history", historyRoutes);
 app.use("/comment", commentRouter);
+app.use("/download", downloadRoutes);
+app.use("/payment", paymentRoutes);
+app.use("/api/payment", paymentRoutes);
 
 app.use("/uploads", express.static("uploads"));
 app.use(bodyParser.json());
