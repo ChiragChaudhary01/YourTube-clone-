@@ -345,7 +345,7 @@ const VideoInfo = ({ video }) => {
             {showPremiumHint && (
                 <div className="bg-yellow-100 border border-yellow-300 text-yellow-900 rounded-lg p-4 flex items-center justify-between gap-3">
                     <div className="text-sm">
-                        You have reached the daily download limit. Upgrade to premium for unlimited downloads.
+                        You have reached the daily download limit. Upgrade to Gold Plan for unlimited downloads.
                     </div>
                     <div className="flex items-center gap-2">
                         <Button

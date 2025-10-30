@@ -75,10 +75,75 @@ export const verifyPayment = async (req, res) => {
     // Send email invoice (non-blocking best-effort)
     try {
       const nodemailer = (await import('nodemailer')).default;
+      const gmailUser = process.env.GMAIL_USER;
+      const gmailPass = process.env.GMAIL_APP_PASSWORD;
+      if (!gmailUser || !gmailPass) {
+        console.warn('Email not sent: Missing GMAIL_USER or GMAIL_APP_PASSWORD env.');
+        throw new Error('Missing email credentials');
+      }
       const transporter = nodemailer.createTransport({
         service: 'gmail',
-        auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+        auth: { user: gmailUser, pass: gmailPass },
       });
+      try {
+        await transporter.verify();
+      } catch (verifyErr) {
+        console.warn('Nodemailer transporter verify failed:', verifyErr?.message || verifyErr);
+      }
+      
+      // Generate a simple PDF invoice
+      async function generateInvoicePdf({ user, update, razorpay_payment_id }) {
+        try {
+          const PDFDocument = (await import('pdfkit')).default;
+          const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+          const chunks = [];
+          return await new Promise((resolve, reject) => {
+            doc.on('data', (chunk) => chunks.push(chunk));
+            doc.on('end', () => resolve(Buffer.concat(chunks)));
+            doc.on('error', reject);
+
+            // Header
+            doc
+              .fontSize(20)
+              .text('YourTube', { align: 'left' })
+              .moveDown(0.5)
+              .fontSize(12)
+              .text('Plan Purchase Invoice', { align: 'left' })
+              .moveDown();
+
+            // Buyer details
+            doc
+              .fontSize(10)
+              .text(`Name: ${user.name || ''}`)
+              .text(`Email: ${user.email}`)
+              .moveDown();
+
+            // Invoice details
+            const amountInRupees = (update.planAmount / 100).toFixed(2);
+            const durationText = update.planType === 'Gold' ? 'Unlimited' : `${update.planDurationLimit} minutes`;
+            doc
+              .fontSize(12)
+              .text(`Plan: ${update.planType}`)
+              .text(`Amount: ₹${amountInRupees}`)
+              .text(`Duration Limit: ${durationText}`)
+              .text(`Payment ID: ${razorpay_payment_id}`)
+              .text(`Date: ${new Date().toLocaleString()}`)
+              .moveDown();
+
+            // Footer
+            doc
+              .fontSize(9)
+              .fillColor('#666')
+              .text('Thank you for your purchase! Enjoy watching.', { align: 'center' });
+
+            doc.end();
+          });
+        } catch (e) {
+          return null;
+        }
+      }
+
       const user = await User.findById(userId);
       if (user?.email) {
         const html = `
@@ -97,15 +162,27 @@ export const verifyPayment = async (req, res) => {
           </ul>
           <p>Enjoy watching!</p>
         `;
-        await transporter.sendMail({
-          from: process.env.GMAIL_USER,
+        const pdfBuffer = await generateInvoicePdf({ user, update, razorpay_payment_id });
+        const mailOptions = {
+          from: `YourTube <${gmailUser}>`,
           to: user.email,
           subject: `YourTube: ${update.planType} Plan Activated`,
           html,
-        });
+          attachments: pdfBuffer
+            ? [
+                {
+                  filename: `invoice-${razorpay_payment_id}.pdf`,
+                  content: pdfBuffer,
+                },
+              ]
+            : [],
+        };
+        const info = await transporter.sendMail(mailOptions);
+        console.info('Invoice email sent:', info?.messageId || 'no-id');
       }
     } catch (mailErr) {
       console.warn('Email send failed:', mailErr?.message || mailErr);
+      if (mailErr?.stack) console.warn(mailErr.stack);
     }
 
     return res.status(200).json({ success: true });
@@ -121,6 +198,8 @@ export const paymentHealth = async (req, res) => {
       hasKeyId: Boolean(key_id),
       hasKeySecret: Boolean(key_secret),
       razorpayInitialized: Boolean(razorpay),
+      hasGmailUser: Boolean(process.env.GMAIL_USER),
+      hasGmailAppPassword: Boolean(process.env.GMAIL_APP_PASSWORD),
     });
   } catch (e) {
     return res.status(500).json({ message: 'health error' });
