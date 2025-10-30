@@ -1,6 +1,7 @@
 import Razorpay from "razorpay";
 import crypto from "crypto";
 import User from "../modals/Auth.js";
+import { sendInvoiceEmail, getEmailProvider } from "../services/emailService.js";
 
 // Support both standard and test env variable names
 const key_id = process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_TEST || "";
@@ -72,26 +73,8 @@ export const verifyPayment = async (req, res) => {
     };
     await User.findByIdAndUpdate(userId, update);
 
-    // Send email invoice (non-blocking best-effort)
+    // Generate a simple PDF invoice (in-memory buffer)
     try {
-      const nodemailer = (await import('nodemailer')).default;
-      const gmailUser = process.env.GMAIL_USER;
-      const gmailPass = process.env.GMAIL_APP_PASSWORD;
-      if (!gmailUser || !gmailPass) {
-        console.warn('Email not sent: Missing GMAIL_USER or GMAIL_APP_PASSWORD env.');
-        throw new Error('Missing email credentials');
-      }
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: gmailUser, pass: gmailPass },
-      });
-      try {
-        await transporter.verify();
-      } catch (verifyErr) {
-        console.warn('Nodemailer transporter verify failed:', verifyErr?.message || verifyErr);
-      }
-      
-      // Generate a simple PDF invoice
       async function generateInvoicePdf({ user, update, razorpay_payment_id }) {
         try {
           const PDFDocument = (await import('pdfkit')).default;
@@ -146,39 +129,13 @@ export const verifyPayment = async (req, res) => {
 
       const user = await User.findById(userId);
       if (user?.email) {
-        const html = `
-          <h2>YourTube Plan Purchase Confirmation</h2>
-          <p>Hi ${user.name || ''},</p>
-          <p>Thank you for your purchase. Your plan has been upgraded.</p>
-          <h3>Invoice</h3>
-          <ul>
-            <li><strong>Name:</strong> ${user.name || ''}</li>
-            <li><strong>Email:</strong> ${user.email}</li>
-            <li><strong>Plan:</strong> ${update.planType}</li>
-            <li><strong>Amount:</strong> ₹${(update.planAmount/100).toFixed(2)}</li>
-            <li><strong>Duration Limit:</strong> ${update.planType === 'Gold' ? 'Unlimited' : update.planDurationLimit + ' minutes'}</li>
-            <li><strong>Payment ID:</strong> ${razorpay_payment_id}</li>
-            <li><strong>Date:</strong> ${new Date().toLocaleString()}</li>
-          </ul>
-          <p>Enjoy watching!</p>
-        `;
-        const pdfBuffer = await generateInvoicePdf({ user, update, razorpay_payment_id });
-        const mailOptions = {
-          from: `YourTube <${gmailUser}>`,
-          to: user.email,
-          subject: `YourTube: ${update.planType} Plan Activated`,
-          html,
-          attachments: pdfBuffer
-            ? [
-                {
-                  filename: `invoice-${razorpay_payment_id}.pdf`,
-                  content: pdfBuffer,
-                },
-              ]
-            : [],
-        };
-        const info = await transporter.sendMail(mailOptions);
-        console.info('Invoice email sent:', info?.messageId || 'no-id');
+        const pdfBuffer = await generateInvoicePdf({ user, update, razorpay_payment_id: razorpay_payment_id });
+        const result = await sendInvoiceEmail({ user, update, razorpayPaymentId: razorpay_payment_id, pdfBuffer });
+        if (result.ok) {
+          console.info(`Invoice email sent via ${result.provider}:`, result.id || 'no-id');
+        } else {
+          console.warn(`Invoice email failed via ${result.provider}:`, result.error || 'unknown');
+        }
       }
     } catch (mailErr) {
       console.warn('Email send failed:', mailErr?.message || mailErr);
@@ -198,11 +155,48 @@ export const paymentHealth = async (req, res) => {
       hasKeyId: Boolean(key_id),
       hasKeySecret: Boolean(key_secret),
       razorpayInitialized: Boolean(razorpay),
-      hasGmailUser: Boolean(process.env.GMAIL_USER),
-      hasGmailAppPassword: Boolean(process.env.GMAIL_APP_PASSWORD),
+      emailProvider: getEmailProvider(),
+      hasResendKey: Boolean(process.env.RESEND_API_KEY),
+      hasBrevoKey: Boolean(process.env.BREVO_API_KEY),
+      hasBrevoFromEmail: Boolean(process.env.BREVO_FROM_EMAIL),
     });
   } catch (e) {
     return res.status(500).json({ message: 'health error' });
+  }
+};
+
+// Simple test route handler to validate email sending on Render.
+// Protected by EMAIL_TEST_TOKEN to avoid abuse.
+export const testSendEmail = async (req, res) => {
+  try {
+    const authHeader = req.headers['x-email-test-token'] || req.query.token;
+    if (!process.env.EMAIL_TEST_TOKEN || authHeader !== process.env.EMAIL_TEST_TOKEN) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { to = '' } = req.query;
+    if (!to) return res.status(400).json({ message: 'Missing to email' });
+
+    // Build a tiny PDF buffer
+    const PDFDocument = (await import('pdfkit')).default;
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks = [];
+    const pdfBuffer = await new Promise((resolve, reject) => {
+      doc.on('data', (c) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+      doc.fontSize(16).text('YourTube Test Invoice', { align: 'left' });
+      doc.fontSize(12).text(`Date: ${new Date().toLocaleString()}`);
+      doc.moveDown().text('This is a test email to validate provider configuration.');
+      doc.end();
+    });
+
+    const fakeUser = { name: 'Test User', email: to };
+    const update = { planType: 'Bronze', planAmount: 1000, planDurationLimit: 7 };
+    const result = await sendInvoiceEmail({ user: fakeUser, update, razorpayPaymentId: 'test_payment_id', pdfBuffer });
+    return res.status(200).json({ ok: result.ok, provider: result.provider, id: result.id, error: result.error });
+  } catch (e) {
+    return res.status(500).json({ message: e?.message || 'test-send-email failed' });
   }
 };
 
